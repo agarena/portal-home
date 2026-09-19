@@ -24,15 +24,17 @@ cp -r "$PORTAL_DIR/index.html" "$PORTAL_DIR/fonts" "$PORTAL_DIR/assets" "$DIST/"
 cp -r "$WORKS_DIR/works" "$WORKS_DIR/gallery" "$DIST/"
 
 echo "==> 2/3 发布 Cloudflare Pages (shufy-site → agarena.xyz)"
-cd "$DIST"
-npx wrangler pages deploy . --project-name shufy-site --branch main
+# 注意：不从 DIST 目录内执行 wrangler（避免写入 .wrangler 缓存污染产物）
+npx wrangler pages deploy "$DIST" --project-name shufy-site --branch main
 
 if [ "${SKIP_MIRROR:-0}" != "1" ] && [ -d "$MIRROR_DIR/.git" ]; then
   echo "==> 3/3 同步 GitHub Pages 镜像 (agarena/demo-site)"
   cd "$MIRROR_DIR"
   git checkout -q main
   git pull -q
-  rsync -a --delete --exclude '.git' --exclude '.github' --exclude 'README.md' "$DIST/" "$MIRROR_DIR/"
+  # 清空旧内容（保留 .git 与镜像说明文件）后整树替换，等效 rsync --delete
+  find . -mindepth 1 -maxdepth 1 ! -name '.git' ! -name 'README.md' -exec rm -rf {} +
+  cp -r "$DIST/." .
   git add -A
   if git diff --cached --quiet; then
     echo "镜像无变化，跳过"
